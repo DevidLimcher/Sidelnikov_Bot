@@ -20,4 +20,4 @@ def clear_all_questions_answers():
     conn.close()
     print("Все вопросы и ответы успешно удалены.")
 
-#clear_all_questions_answers()
+clear_all_questions_answers()

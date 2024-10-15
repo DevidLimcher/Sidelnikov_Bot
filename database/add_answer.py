@@ -1,15 +1,37 @@
-from database import add_question_answer
+import csv
+import sqlite3
+from database import add_question_answer, question_exists
 
-questions_and_answers = [
-    ("Что такое шифрование данных?", "Шифрование данных — это процесс преобразования информации в форму, недоступную для несанкционированного доступа, с помощью специальных алгоритмов и ключей."),
-    ("Какие виды атак на информационные системы существуют?", "Существуют различные виды атак, такие как фишинг, DDoS-атаки, атаки с использованием вредоносного ПО, SQL-инъекции и атаки с перехватом данных."),
-    ("Что такое брандмауэр (Firewall)?", "Брандмауэр — это программное или аппаратное средство, которое контролирует и фильтрует сетевой трафик, позволяя или блокируя его на основе заданных правил безопасности."),
-    ("Что такое многофакторная аутентификация (MFA)?", "Многофакторная аутентификация (MFA) — это метод защиты, при котором для входа в систему требуется предоставить несколько форм подтверждения личности, таких как пароль и код из SMS."),
-    ("Как защитить Wi-Fi сеть?", "Для защиты Wi-Fi сети необходимо использовать шифрование WPA2 или WPA3, задавать сложный пароль, отключать WPS и регулярно обновлять прошивку роутера.")
+# Путь к базе данных
+db_path = '/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/bot_database.db'
+
+# Функция для проверки, существует ли вопрос в таблице
+def question_exists(question):
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM responses WHERE question = ?", (question,))
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+# Чтение файлов CSV и добавление вопросов и ответов
+file_paths = [
+    "/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_1.csv",
+    "/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_2.csv",
+    "/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_3.csv"
 ]
 
-# Добавляем все вопросы и ответы в базу данных
-for question, answer in questions_and_answers:
-    add_question_answer(question, answer)
+for file_path in file_paths:
+    with open(file_path, newline='', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            question = row['Question'].strip()
+            answer = row['Answer'].strip()
+
+            if not question_exists(question):
+                add_question_answer(question, answer)
+                print(f"Вопрос и ответ добавлены: {question}")
+            else:
+                print(f"Вопрос уже существует: {question}")
 
 print("Вопросы и ответы успешно добавлены в базу данных.")
