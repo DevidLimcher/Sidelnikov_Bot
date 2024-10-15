@@ -3,6 +3,8 @@ import numpy as np
 import sqlite3
 import os
 from sentence_transformers import SentenceTransformer
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
 
 # Путь к базе данных
 DB_PATH = "database/bot_database.db"
@@ -11,6 +13,12 @@ INDEX_PATH = "faiss_index.index"
 # Модель для генерации эмбеддингов
 MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 model = SentenceTransformer(MODEL_NAME)
+p
+# Загрузка GPT-2 модели
+gpt_model_name = 'distilgpt2'
+gpt_model = GPT2LMHeadModel.from_pretrained(gpt_model_name)
+gpt_tokenizer = GPT2Tokenizer.from_pretrained(gpt_model_name)
+gpt_model.to('cpu')
 
 # Подключение к базе данных
 def get_db_connection():
@@ -55,6 +63,12 @@ def load_faiss_index():
     else:
         return create_faiss_index()
 
+# Генерация ответа с помощью GPT-2
+def generate_answer(prompt):
+    inputs = gpt_tokenizer.encode(prompt, return_tensors='pt')
+    outputs = gpt_model.generate(inputs, max_length=150, num_return_sequences=1)
+    return gpt_tokenizer.decode(outputs[0], skip_special_tokens=True)
+
 # Поиск наиболее похожего вопроса в базе данных
 def find_similar_question(user_question):
     index, question_ids = load_faiss_index()
@@ -67,27 +81,29 @@ def find_similar_question(user_question):
     # Поиск ближайшего соседа
     D, I = index.search(user_embedding, k=1)
     
-    threshold = 0.5  # Порог схожести, можно уменьшить для повышения точности
+    threshold = 0.5  # Порог схожести
     if D[0][0] < threshold:
         found_index = I[0][0]
         found_id = question_ids[found_index]
-        # Далее выполняем поиск ответа по найденному ID
-    else:
-        return "Похожий вопрос не найден."
+        
+        # Проверка записи по найденному ID
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, question, answer FROM responses WHERE id = ?", (found_id,))
+        result = cursor.fetchone()
+        conn.close()
 
-    
-    # Проверка записи по найденному ID
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, question, answer FROM responses WHERE id = ?", (found_id,))
-    result = cursor.fetchone()
-    conn.close()
-
-    if result:
-        question, answer = result[1], result[2]
-        return f"Похожий вопрос: {question}\nОтвет: {answer}"
+        if result:
+            question, answer = result[1], result[2]
+            return f"Похожий вопрос: {question}\nОтвет: {answer}"
+        else:
+            # Если точного ответа нет, генерируем его
+            generated_answer = generate_answer(user_question)
+            return f"Ответ не найден в базе данных. Сгенерированный ответ: {generated_answer}"
     else:
-        return f"Запись с ID {found_id} не найдена в базе данных."
+        # Если похожий вопрос не найден, генерируем ответ
+        generated_answer = generate_answer(user_question)
+        return f"Похожий вопрос не найден. Сгенерированный ответ: {generated_answer}"
 
 # Пример использования
 user_input = input("Введите вопрос: ")
