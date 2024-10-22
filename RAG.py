@@ -1,20 +1,25 @@
-import faiss
+import scann
 import numpy as np
 import sqlite3
 import os
 from sentence_transformers import SentenceTransformer
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
-
+import tensorflow as tf
 
 # Путь к базе данных
 DB_PATH = "database/bot_database.db"
-# Путь для сохранения индекса FAISS
-INDEX_PATH = "faiss_index.index"
+# Путь для сохранения индекса ScaNN
+INDEX_PATH = "scann_index"
 # Модель для генерации эмбеддингов
 MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
-model = SentenceTransformer(MODEL_NAME)
-p
-# Загрузка GPT-2 модели
+
+# Настройки TensorFlow для использования только CPU
+tf.config.set_visible_devices([], 'GPU')
+
+# Загрузка модели SentenceTransformer и указание работы на CPU
+model = SentenceTransformer(MODEL_NAME, device='cpu')
+
+# Загрузка GPT-2 модели и перевод её на CPU
 gpt_model_name = 'distilgpt2'
 gpt_model = GPT2LMHeadModel.from_pretrained(gpt_model_name)
 gpt_tokenizer = GPT2Tokenizer.from_pretrained(gpt_model_name)
@@ -34,8 +39,14 @@ def get_all_questions():
     conn.close()
     return data
 
-# Функция для создания и сохранения индекса FAISS
-def create_faiss_index():
+import os
+
+# Функция для создания и сохранения индекса ScaNN
+def create_scann_index():
+    # Создаем директорию, если её нет
+    if not os.path.exists(INDEX_PATH):
+        os.makedirs(INDEX_PATH)
+    
     # Получаем все вопросы
     data = get_all_questions()
     if not data:
@@ -45,23 +56,25 @@ def create_faiss_index():
     questions = [row[1] for row in data]
     embeddings = model.encode(questions, convert_to_numpy=True)
 
-    # Создание индекса FAISS
-    dimension = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dimension)
-    index.add(embeddings)
-
+    # Оптимизированное создание и настройка индекса ScaNN
+    searcher = scann.scann_ops_pybind.builder(embeddings, 10, "dot_product").tree(
+        num_leaves=100, num_leaves_to_search=10, training_sample_size=250000).score_ah(
+        2, anisotropic_quantization_threshold=0.2).reorder(100).build()
+    
     # Сохранение индекса на диск
-    faiss.write_index(index, INDEX_PATH)
-    return index, [row[0] for row in data]  # Возвращаем список ID вопросов
+    searcher.serialize(INDEX_PATH)
+    return searcher, [row[0] for row in data]
 
-# Функция для загрузки индекса FAISS
-def load_faiss_index():
+
+
+# Функция для загрузки индекса ScaNN
+def load_scann_index():
     if os.path.exists(INDEX_PATH):
-        index = faiss.read_index(INDEX_PATH)
+        searcher = scann.scann_ops_pybind.load_searcher(INDEX_PATH)
         data = get_all_questions()
-        return index, [row[0] for row in data]
+        return searcher, [row[0] for row in data]
     else:
-        return create_faiss_index()
+        return create_scann_index()
 
 # Генерация ответа с помощью GPT-2
 def generate_answer(prompt):
@@ -71,19 +84,19 @@ def generate_answer(prompt):
 
 # Поиск наиболее похожего вопроса в базе данных
 def find_similar_question(user_question):
-    index, question_ids = load_faiss_index()
-    if index is None:
+    searcher, question_ids = load_scann_index()
+    if searcher is None:
         return "Индекс не загружен."
 
     # Генерация эмбеддинга для пользовательского вопроса
     user_embedding = model.encode([user_question], convert_to_numpy=True)
     
     # Поиск ближайшего соседа
-    D, I = index.search(user_embedding, k=1)
+    neighbors, distances = searcher.search_batched(user_embedding)
     
     threshold = 0.5  # Порог схожести
-    if D[0][0] < threshold:
-        found_index = I[0][0]
+    if distances[0][0] < threshold:
+        found_index = neighbors[0][0]
         found_id = question_ids[found_index]
         
         # Проверка записи по найденному ID

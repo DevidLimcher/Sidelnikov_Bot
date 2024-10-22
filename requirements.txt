@@ -1,5 +1,6 @@
 aiogram==3.13.1
 sentence_transformers
-faiss
+scann
 torch
-sqlite3
+tensorflow
+transformers
