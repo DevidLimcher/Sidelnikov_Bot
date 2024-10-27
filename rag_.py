@@ -1,7 +1,28 @@
 from faiss_index import load_faiss_index
-from llama_model import generate_response_with_llama
+from llama_model import generate_response_with_llama, generate_code_response
 from database.database import get_db_connection
 from faiss_index import model
+from fuzzywuzzy import fuzz
+
+def is_code_request(query: str) -> bool:
+    """
+    Проверяет, содержит ли запрос пользователя слова, указывающие на необходимость генерации кода.
+
+    Args:
+        query (str): Вопрос пользователя.
+
+    Returns:
+        bool: True, если запрос содержит слова, связанные с кодом, иначе False.
+    """
+    code_keywords = ["code", "script", "program", "function", "write code", 
+                     "generate code", "coding", "develop code"]
+
+    query = query.lower()
+    for keyword in code_keywords:
+        # Проверка на совпадение по схожести выше 80% (можно изменить по необходимости)
+        if fuzz.partial_ratio(keyword, query) > 80:
+            return True
+    return False
 
 
 def find_similar_question(user_question):
@@ -18,14 +39,7 @@ def find_similar_question(user_question):
         - Загружает индекс FAISS для поиска схожих вопросов.
         - Генерирует эмбеддинг для пользовательского вопроса и ищет ближайший по схожести вопрос.
         - Если похожий вопрос найден, извлекает ответ из базы данных; в противном случае вызывает 
-          `generate_response_with_llama` для создания нового ответа.
-
-    Example:
-        >>> find_similar_question("Какова высота Эвереста?")
-        "Похожий вопрос: Какая высота у горы Эверест?\nОтвет: Высота Эвереста составляет 8,848 метров."
-
-    Thresholds:
-        - `threshold = 0.5`: Устанавливает пороговое значение для определения схожести вопросов.
+          `generate_response_with_llama` или `generate_code_response` для создания нового ответа.
     """
     index, question_ids = load_faiss_index()
     if index is None:
@@ -39,7 +53,11 @@ def find_similar_question(user_question):
         found_index = I[0][0]
         found_id = question_ids[found_index]
     else:
-        return generate_response_with_llama(user_question)
+        # Если вопрос содержит запрос на код, используем генерацию кода
+        if is_code_request(user_question):
+            return generate_code_response(user_question)
+        else:
+            return generate_response_with_llama(user_question)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -52,7 +70,6 @@ def find_similar_question(user_question):
         return f"Похожий вопрос: {question}\nОтвет: {answer}"
     else:
         return f"Запись с ID {found_id} не найдена в базе данных."
-
 
 def process_user_question(user_question):
     """
@@ -69,4 +86,3 @@ def process_user_question(user_question):
         "Квантовая физика - это раздел физики, изучающий поведение частиц на уровне атомов и субатомов."
     """
     return find_similar_question(user_question)
-

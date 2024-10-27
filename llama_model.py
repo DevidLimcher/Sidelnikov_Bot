@@ -74,3 +74,47 @@ def generate_response_with_llama(user_question):
     response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
     return response
 
+def generate_code_response(user_question):
+    """
+    Генерирует ответ в виде кода на запрос пользователя с помощью LLaMA. Эта функция специально настроена для генерации кода на основе запросов, содержащих указание на создание программного кода.
+
+    Args:
+        user_question (str): Запрос пользователя, в котором содержится запрос на создание кода.
+
+    Returns:
+        str: Сгенерированный моделью текст, содержащий код, соответствующий запросу пользователя.
+
+    Example:
+        >>> generate_code_response("Напиши функцию на C++ для нахождения факториала числа.")
+        "int factorial(int n) { return (n <= 1) ? 1 : n * factorial(n - 1); }"
+
+    Параметры генерации:
+        - max_length=2000: Максимальная длина сгенерированного ответа, обеспечивающая достаточный объем текста для сложных программ.
+        - temperature=0.1: Низкая температура для повышения последовательности и качества кода.
+        - top_k=40 и top_p=0.6: Контролируют вероятность выбора следующего токена, избегая низкокачественных вариантов.
+        - do_sample=True: Включение сэмплирования для более разнообразных, но контролируемых вариантов.
+        - repetition_penalty=1.1: Снижает вероятность повторений в ответе.
+
+    Side Effects:
+        - Использует предобученную модель генерации, загруженную на GPU для быстродействия.
+        - Производит токенизацию входного запроса, передает его в генерацию и возвращает декодированный ответ.
+
+    """
+    inputs = tokenizer("Write a code: " + user_question, return_tensors='pt', padding=True)
+    input_ids = inputs['input_ids'].to('cuda')
+    attention_mask = inputs['attention_mask'].to('cuda')
+
+    outputs = gen_model.generate(
+        input_ids,
+        attention_mask=attention_mask,
+        max_length=2000,
+        num_return_sequences=1,
+        temperature=0.1,         
+        top_k=40,                
+        top_p=0.6,              
+        do_sample=True,
+        pad_token_id=tokenizer.eos_token_id,
+        repetition_penalty=1.1
+    )
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
+    return response
