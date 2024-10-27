@@ -2,8 +2,9 @@ import faiss
 import numpy as np
 import sqlite3
 import os
+import torch
 from sentence_transformers import SentenceTransformer
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Путь к базе данных
 DB_PATH = "database/bot_database.db"
@@ -13,10 +14,10 @@ INDEX_PATH = "faiss_index.index"
 MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 model = SentenceTransformer(MODEL_NAME)
 
-# Модель для генерации текста
-GEN_MODEL_NAME = 'gpt2'
-gen_model = GPT2LMHeadModel.from_pretrained(GEN_MODEL_NAME)
-tokenizer = GPT2Tokenizer.from_pretrained(GEN_MODEL_NAME)
+# Загрузка модели LLaMA
+GEN_MODEL_NAME = 'meta-llama/Llama-3.2-1B'
+tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL_NAME)
+gen_model = AutoModelForCausalLM.from_pretrained(GEN_MODEL_NAME).to('cuda')  # Загружаем LLaMA на GPU
 
 # Подключение к базе данных
 def get_db_connection():
@@ -61,23 +62,23 @@ def load_faiss_index():
     else:
         return create_faiss_index()
 
-# Генерация ответа с использованием локальной языковой модели
-def generate_response_with_gpt2(user_question):
+# Генерация ответа с использованием LLaMA на GPU
+def generate_response_with_llama(user_question):
     # Установить токен заполнителя
     tokenizer.pad_token = tokenizer.eos_token
     
-    # Токенизация пользовательского вопроса с генерацией attention mask
-    inputs = tokenizer("Give a simple explanation: " + user_question, return_tensors='pt', max_length=60, truncation=True, padding=True)
+    # Токенизация пользовательского вопроса
+    inputs = tokenizer("Give a simple explanation: " + user_question, return_tensors='pt', padding=True)
     
-    # Входные данные и attention mask
-    input_ids = inputs['input_ids']
-    attention_mask = inputs['attention_mask']
+    # Входные данные на GPU
+    input_ids = inputs['input_ids'].to('cuda')
+    attention_mask = inputs['attention_mask'].to('cuda')
 
-    # Генерация ответа с использованием дополнительных параметров
+    # Генерация ответа без ограничений по длине
     outputs = gen_model.generate(
         input_ids, 
         attention_mask=attention_mask,
-        max_length=80,          
+        max_length=500,         # Увеличиваем длину генерируемого текста
         num_return_sequences=1, 
         pad_token_id=tokenizer.eos_token_id,
         no_repeat_ngram_size=3,  
@@ -110,7 +111,7 @@ def find_similar_question(user_question):
         # Далее выполняем поиск ответа по найденному ID
     else:
         # Если похожий вопрос не найден, генерируем ответ с использованием локальной модели
-        return generate_response_with_gpt2(user_question)
+        return generate_response_with_llama(user_question)
     
     # Проверка записи по найденному ID
     conn = get_db_connection()
@@ -128,4 +129,3 @@ def find_similar_question(user_question):
 def process_user_question(user_question):
     # Используем существующую функцию для поиска или генерации ответа
     return find_similar_question(user_question)
-

@@ -2,3 +2,4 @@ aiogram==3.13.1
 sentence_transformers
 faiss-cpu
 torch
+huggingface_hub
