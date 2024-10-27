@@ -4,7 +4,7 @@ import sqlite3
 import os
 import torch
 from sentence_transformers import SentenceTransformer
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 # Путь к базе данных
 DB_PATH = "database/bot_database.db"
@@ -14,10 +14,33 @@ INDEX_PATH = "faiss_index.index"
 MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 model = SentenceTransformer(MODEL_NAME)
 
-# Загрузка модели LLaMA
+# Загрузка модели LLaMA с квантованием
 GEN_MODEL_NAME = 'meta-llama/Llama-3.2-1B'
-tokenizer = AutoTokenizer.from_pretrained(GEN_MODEL_NAME)
-gen_model = AutoModelForCausalLM.from_pretrained(GEN_MODEL_NAME).to('cuda')  # Загружаем LLaMA на GPU
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_quant_type="nf4",
+    bnb_4bit_compute_dtype=torch.float16,
+    bnb_4bit_use_double_quant=True,
+)
+
+# Загрузка модели с квантованием для оптимизации памяти
+tokenizer = AutoTokenizer.from_pretrained(
+    GEN_MODEL_NAME,
+    trust_remote_code=True,
+    padding_side="left",
+    add_eos_token=True,
+    add_bos_token=True,
+    use_fast=False
+)
+tokenizer.pad_token = tokenizer.eos_token
+
+gen_model = AutoModelForCausalLM.from_pretrained(
+    GEN_MODEL_NAME, 
+    device_map="auto",
+    quantization_config=bnb_config,
+    trust_remote_code=True
+).to('cuda')
 
 # Подключение к базе данных
 def get_db_connection():
@@ -64,31 +87,28 @@ def load_faiss_index():
 
 # Генерация ответа с использованием LLaMA на GPU
 def generate_response_with_llama(user_question):
-    # Установить токен заполнителя
-    tokenizer.pad_token = tokenizer.eos_token
-    
     # Токенизация пользовательского вопроса
-    inputs = tokenizer("Give a simple explanation: " + user_question, return_tensors='pt', padding=True)
+    inputs = tokenizer("Write a clear answer for: " + user_question, return_tensors='pt', padding=True)
     
     # Входные данные на GPU
     input_ids = inputs['input_ids'].to('cuda')
     attention_mask = inputs['attention_mask'].to('cuda')
 
-    # Генерация ответа без ограничений по длине
+    # Генерация ответа с оптимизированными параметрами
     outputs = gen_model.generate(
         input_ids, 
         attention_mask=attention_mask,
-        max_length=500,         # Увеличиваем длину генерируемого текста
+        max_length=200,
         num_return_sequences=1, 
         pad_token_id=tokenizer.eos_token_id,
-        no_repeat_ngram_size=3,  
-        temperature=0.3,         
+        no_repeat_ngram_size=3,
+        temperature=0.6,         
         top_k=50,                
-        top_p=0.85,              
+        top_p=0.7,              
         do_sample=True,          
-        repetition_penalty=2.0  
+        repetition_penalty=1.1  
     )
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
     return response
 
 
@@ -104,7 +124,7 @@ def find_similar_question(user_question):
     # Поиск ближайшего соседа
     D, I = index.search(user_embedding, k=1)
     
-    threshold = 0.5  # Порог схожести, можно уменьшить для повышения точности
+    threshold = 0.5  # Порог схожести
     if D[0][0] < threshold:
         found_index = I[0][0]
         found_id = question_ids[found_index]

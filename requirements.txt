@@ -3,3 +3,5 @@ sentence_transformers
 faiss-cpu
 torch
 huggingface_hub
+bitsandbytes
+accelerate
