@@ -3,11 +3,29 @@
 import sqlite3
 
 def execute_query(query: str, parameters: tuple = ()):
+    """
+    Выполняет заданный SQL-запрос с параметрами и сохраняет изменения в базе данных.
+
+    Args:
+        query (str): SQL-запрос, который нужно выполнить.
+        parameters (tuple, optional): Кортеж с параметрами для подстановки в запрос. 
+            По умолчанию пустой кортеж.
+
+    Returns:
+        None
+
+    Side Effects:
+        Устанавливает соединение с базой данных `bot_database.db` для выполнения запроса и закрывает его после завершения.
+
+    Example:
+        >>> execute_query("INSERT INTO responses (question, answer) VALUES (?, ?)", ("Как погода?", "Солнечно"))
+    """
     conn = sqlite3.connect('bot_database.db')
     cursor = conn.cursor()
     cursor.execute(query, parameters)
     conn.commit()
     conn.close()
+
 
 # Создание таблицы вопросов и ответов
 execute_query('''

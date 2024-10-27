@@ -7,12 +7,29 @@ db_path = '/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/bot_databa
 
 # Функция для проверки, существует ли вопрос в таблице
 def question_exists(question):
+    """
+    Проверяет, существует ли заданный вопрос в базе данных.
+
+    Args:
+        question (str): Вопрос, который нужно проверить на наличие в базе данных.
+
+    Returns:
+        bool: True, если вопрос уже существует в таблице `responses`, иначе False.
+
+    Side Effects:
+        Устанавливает соединение с базой данных для выполнения SQL-запроса и закрывает его после завершения.
+
+    Example:
+        >>> question_exists("Как погода сегодня?")
+        True
+    """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     cursor.execute("SELECT 1 FROM responses WHERE question = ?", (question,))
     result = cursor.fetchone()
     conn.close()
     return result is not None
+
 
 # Чтение файлов CSV и добавление вопросов и ответов
 file_paths = [

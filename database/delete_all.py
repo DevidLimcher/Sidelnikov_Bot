@@ -7,6 +7,21 @@ database_path = os.path.join(current_directory, 'bot_database.db')
 
 # Функция для очистки всех вопросов и ответов
 def clear_all_questions_answers():
+    """
+    Удаляет все записи из таблицы `responses`, очищая базу данных от вопросов и ответов.
+
+    Returns:
+        None
+
+    Side Effects:
+        Устанавливает соединение с базой данных и удаляет все записи из таблицы `responses`.
+        Также сбрасывает автоинкрементный счётчик таблицы, если он используется.
+        Закрывает соединение с базой данных после завершения операции.
+
+    Example:
+        >>> clear_all_questions_answers()
+        Все вопросы и ответы успешно удалены.
+    """
     conn = sqlite3.connect(database_path)
     cursor = conn.cursor()
     
@@ -19,5 +34,6 @@ def clear_all_questions_answers():
     conn.commit()
     conn.close()
     print("Все вопросы и ответы успешно удалены.")
+
 
 clear_all_questions_answers()

@@ -8,3 +8,8 @@ ACCESS_LEVELS = {
     "premium": 2, # Платный доступ
     "user": 1     # Уровень доступа для остальных
 }
+
+DB_PATH = "database/bot_database.db"
+INDEX_PATH = "faiss_index.index"
+MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
+GEN_MODEL_NAME = 'meta-llama/Llama-3.2-1B'
