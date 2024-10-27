@@ -1,5 +1,4 @@
 aiogram==3.13.1
 sentence_transformers
-faiss
+faiss-cpu
 torch
-sqlite3

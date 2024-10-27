@@ -3,6 +3,7 @@ import numpy as np
 import sqlite3
 import os
 from sentence_transformers import SentenceTransformer
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 # Путь к базе данных
 DB_PATH = "database/bot_database.db"
@@ -11,6 +12,11 @@ INDEX_PATH = "faiss_index.index"
 # Модель для генерации эмбеддингов
 MODEL_NAME = 'sentence-transformers/all-MiniLM-L6-v2'
 model = SentenceTransformer(MODEL_NAME)
+
+# Модель для генерации текста
+GEN_MODEL_NAME = 'gpt2'
+gen_model = GPT2LMHeadModel.from_pretrained(GEN_MODEL_NAME)
+tokenizer = GPT2Tokenizer.from_pretrained(GEN_MODEL_NAME)
 
 # Подключение к базе данных
 def get_db_connection():
@@ -44,7 +50,7 @@ def create_faiss_index():
 
     # Сохранение индекса на диск
     faiss.write_index(index, INDEX_PATH)
-    return index, [row[0] for row in data]  # Возвращаем список ID вопросов
+    return index, [row[0] for row in data] 
 
 # Функция для загрузки индекса FAISS
 def load_faiss_index():
@@ -54,6 +60,36 @@ def load_faiss_index():
         return index, [row[0] for row in data]
     else:
         return create_faiss_index()
+
+# Генерация ответа с использованием локальной языковой модели
+def generate_response_with_gpt2(user_question):
+    # Установить токен заполнителя
+    tokenizer.pad_token = tokenizer.eos_token
+    
+    # Токенизация пользовательского вопроса с генерацией attention mask
+    inputs = tokenizer("Give a simple explanation: " + user_question, return_tensors='pt', max_length=60, truncation=True, padding=True)
+    
+    # Входные данные и attention mask
+    input_ids = inputs['input_ids']
+    attention_mask = inputs['attention_mask']
+
+    # Генерация ответа с использованием дополнительных параметров
+    outputs = gen_model.generate(
+        input_ids, 
+        attention_mask=attention_mask,
+        max_length=80,          
+        num_return_sequences=1, 
+        pad_token_id=tokenizer.eos_token_id,
+        no_repeat_ngram_size=3,  
+        temperature=0.3,         
+        top_k=50,                
+        top_p=0.85,              
+        do_sample=True,          
+        repetition_penalty=2.0  
+    )
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return response
+
 
 # Поиск наиболее похожего вопроса в базе данных
 def find_similar_question(user_question):
@@ -73,8 +109,8 @@ def find_similar_question(user_question):
         found_id = question_ids[found_index]
         # Далее выполняем поиск ответа по найденному ID
     else:
-        return "Похожий вопрос не найден."
-
+        # Если похожий вопрос не найден, генерируем ответ с использованием локальной модели
+        return generate_response_with_gpt2(user_question)
     
     # Проверка записи по найденному ID
     conn = get_db_connection()
@@ -89,7 +125,7 @@ def find_similar_question(user_question):
     else:
         return f"Запись с ID {found_id} не найдена в базе данных."
 
-# Пример использования
-user_input = input("Введите вопрос: ")
-response = find_similar_question(user_input)
-print(response)
+    def process_user_question(user_question):
+        # Используем существующую функцию для поиска или генерации ответа
+        return find_similar_question(user_question)
+

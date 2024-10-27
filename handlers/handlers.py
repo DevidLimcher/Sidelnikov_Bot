@@ -5,6 +5,9 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from database.database import get_answer, add_question_answer
 from access_levels import is_blocked
+import sys
+import os
+from rag_ import process_user_question 
 
 router = Router()
 
@@ -48,12 +51,12 @@ async def add_question(message: Message):
 @router.message()
 async def handle_message(message: Message):
     query = message.text
-
     access_level = get_access_level(message.from_user.id)
 
+    # Проверка на запрещённые темы или уровни доступа
     if is_blocked(query, access_level):
         await message.answer("Я не могу предоставить вам данную информацию.")
     else:
-        answer = get_answer(query)
+        # Отправляем вопрос в rag.py для обработки и получаем ответ
+        answer = process_user_question(query)
         await message.answer(answer)
-        
