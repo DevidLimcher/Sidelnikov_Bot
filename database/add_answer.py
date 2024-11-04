@@ -1,9 +1,18 @@
 import csv
 import sqlite3
+import sys
+import os
 from database import add_question_answer, question_exists
 
-# Путь к базе данных
-db_path = '/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/bot_database.db'
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config import DB_PATH
+
+# Определяем путь к текущему файлу (db_functions.py)
+current_directory = os.path.dirname(os.path.abspath(__file__))
+
+# Определяем путь к базе данных в этой же папке
+db_path = os.path.join(current_directory, 'bot_database.db')
 
 # Функция для проверки, существует ли вопрос в таблице
 def question_exists(question):
@@ -33,9 +42,7 @@ def question_exists(question):
 
 # Чтение файлов CSV и добавление вопросов и ответов
 file_paths = [
-    "/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_1.csv",
-    "/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_2.csv",
-    "/Users/davidlimcher/Desktop/Python/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_3.csv"
+    "/home/davidlimcher/projects/Sidelnikov_Bot/database/Q_A_sets/Q_A_set_3.csv"
 ]
 
 for file_path in file_paths:
