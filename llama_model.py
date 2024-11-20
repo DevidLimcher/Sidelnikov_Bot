@@ -118,3 +118,4 @@ def generate_code_response(user_question):
     )
     response = tokenizer.decode(outputs[0], skip_special_tokens=True).strip()
     return response
+

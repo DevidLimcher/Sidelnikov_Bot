@@ -4,25 +4,34 @@ from database.database import get_db_connection
 from faiss_index import model
 from fuzzywuzzy import fuzz
 
+from fuzzywuzzy import fuzz
+
+from transformers import pipeline
+
+# Инициализируем модель для классификации запросов
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+
 def is_code_request(query: str) -> bool:
     """
-    Проверяет, содержит ли запрос пользователя слова, указывающие на необходимость генерации кода.
+    Определяет, содержит ли запрос пользователя слова, указывающие на необходимость генерации кода,
+    с помощью NLP-модели для классификации текста.
 
     Args:
         query (str): Вопрос пользователя.
 
     Returns:
-        bool: True, если запрос содержит слова, связанные с кодом, иначе False.
+        bool: True, если запрос связан с генерацией кода, иначе False.
     """
-    code_keywords = ["code", "script", "program", "function", "write code", 
-                     "generate code", "coding", "develop code"]
+    # Определяем кандидаты для классификации
+    labels = ["code request", "general question"]
+    
+    # Используем NLP-классификатор для определения, подходит ли запрос для генерации кода
+    result = classifier(query, labels)
+    
+    # Если вероятность "code request" выше порога, то считаем это запросом на код
+    return result['labels'][0] == "code request" and result['scores'][0] > 0.75
 
-    query = query.lower()
-    for keyword in code_keywords:
-        # Проверка на совпадение по схожести выше 80% (можно изменить по необходимости)
-        if fuzz.partial_ratio(keyword, query) > 80:
-            return True
-    return False
+
 
 
 def find_similar_question(user_question):
