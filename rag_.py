@@ -29,7 +29,7 @@ def is_code_request(query: str) -> bool:
     result = classifier(query, labels)
     
     # Если вероятность "code request" выше порога, то считаем это запросом на код
-    return result['labels'][0] == "code request" and result['scores'][0] > 0.75
+    return result['labels'][0] == "code request" and result['scores'][0] > 0.9
 
 
 
