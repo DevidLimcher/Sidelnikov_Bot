@@ -1,5 +1,6 @@
 from faiss_index import load_faiss_index
-from llama_model import generate_response_with_llama, generate_code_response
+from llama_model import generate_response_with_llama
+from codegen import generate_code_response
 from database.database import get_db_connection
 from faiss_index import model
 from fuzzywuzzy import fuzz
@@ -11,25 +12,50 @@ from transformers import pipeline
 # Инициализируем модель для классификации запросов
 classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
-def is_code_request(query: str) -> bool:
+# def is_code_request(query: str) -> bool:
+#     """
+#     Определяет, содержит ли запрос пользователя слова, указывающие на необходимость генерации кода,
+#     с помощью NLP-модели для классификации текста.
+
+#     Args:
+#         query (str): Вопрос пользователя.
+
+#     Returns:
+#         bool: True, если запрос связан с генерацией кода, иначе False.
+#     """
+#     # Определяем кандидаты для классификации
+#     labels = ["code request", "general question"]
+    
+#     # Используем NLP-классификатор для определения, подходит ли запрос для генерации кода
+#     result = classifier(query, labels)
+    
+#     # Если вероятность "code request" выше порога, то считаем это запросом на код
+#     return result['labels'][0] == "code request" and result['scores'][0] > 0.5
+
+
+from transformers import pipeline
+
+# Загружаем Zero-Shot Classification pipeline с моделью BART
+classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device=0)  # Используем GPU
+
+def is_code_request(user_question: str) -> bool:
     """
-    Определяет, содержит ли запрос пользователя слова, указывающие на необходимость генерации кода,
-    с помощью NLP-модели для классификации текста.
+    Определяет, является ли запрос просьбой написать код, используя zero-shot классификацию.
 
     Args:
-        query (str): Вопрос пользователя.
+        user_question (str): Вопрос пользователя.
 
     Returns:
-        bool: True, если запрос связан с генерацией кода, иначе False.
+        bool: True, если запрос связан с кодом, иначе False.
     """
-    # Определяем кандидаты для классификации
-    labels = ["code request", "general question"]
+    labels = ["request for code", "general question"]
     
-    # Используем NLP-классификатор для определения, подходит ли запрос для генерации кода
-    result = classifier(query, labels)
+    # Запускаем классификацию
+    result = classifier(user_question, labels)
     
-    # Если вероятность "code request" выше порога, то считаем это запросом на код
-    return result['labels'][0] == "code request" and result['scores'][0] > 0.9
+    # Проверяем, уверена ли модель в классификации как "request for code"
+    return result["labels"][0] == "request for code" and result["scores"][0] > 0.7
+
 
 
 
